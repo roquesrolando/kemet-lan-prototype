@@ -1,0 +1,25 @@
+node_modules# Dependencies
+node_modules/
+
+# Build files
+dist/
+build/
+
+# Coverage
+coverage/
+
+# Environment files
+.env
+.env.local
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# pnpm
+.pnpm-store/
+
+# Logs
+*.log
