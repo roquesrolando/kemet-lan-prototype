@@ -1,6 +1,6 @@
 {
   "name": "@kemet/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,11 +11,12 @@
   },
   "dependencies": {
     "@kemet/shared": "workspace:*",
+    "cors": "^2.8.6",
     "express": "^4.21.2",
-    "socket.io": "^4.8.1",
-    "cors": "^2.8.5"
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",

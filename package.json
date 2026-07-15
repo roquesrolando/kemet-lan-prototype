@@ -1,7 +1,8 @@
 {
   "name": "kemet-lan-prototype",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter @kemet/shared build && concurrently -n server,client -c auto \"pnpm --filter @kemet/server dev\" \"pnpm --filter @kemet/client dev\"",
     "build": "pnpm --filter @kemet/shared build && pnpm --filter @kemet/server build && pnpm --filter @kemet/client build",
