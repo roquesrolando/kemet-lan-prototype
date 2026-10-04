@@ -57,13 +57,15 @@ export function recruit(state: GameState, pid: string, territoryId: string, unit
   if (!Number.isInteger(units) || units < 1) throw new Error('Units must be a positive whole number.');
   const p = player(state, pid);
   const t = territory(state, territoryId);
-  if (t.kind !== 'city' || t.ownerId !== pid) throw new Error('Recruit only in your own city.');
-  if (Object.entries(t.armies).some(([id, n]) => id !== pid && n > 0)) throw new Error('Cannot recruit in a city occupied by an enemy army.');
+  // Recruiting stays tied to the starting city, even while an enemy holds it.
+  if (t.kind !== 'city' || t.homeOwnerId !== pid) throw new Error('Recruit only in your own city.');
   if (p.prayer < units) throw new Error('Not enough prayer points.');
   if ((t.armies[pid] || 0) + units > 10) throw new Error('Army limit is 10 in this prototype.');
+  const enemies = Object.entries(t.armies).filter(([id, n]) => id !== pid && n > 0);
   p.prayer -= units;
   t.armies[pid] = (t.armies[pid] || 0) + units;
   log(state, `${p.name} recruited ${units} unit${units === 1 ? '' : 's'} in ${t.name}.`);
+  if (enemies.length === 1) startBattle(state, pid, t, t.id, units, enemies[0]);
 }
 
 export function move(state: GameState, pid: string, fromId: string, toId: string, units: number) {
@@ -83,24 +85,27 @@ export function move(state: GameState, pid: string, fromId: string, toId: string
   to.armies[pid] = (to.armies[pid] || 0) + units;
 
   if (enemies.length === 1) {
-    const defenderId = enemies[0][0];
-    state.battle = {
-      id: crypto.randomUUID(),
-      territoryId: to.id,
-      originTerritoryId: from.id,
-      attackerId: pid,
-      defenderId,
-      attackerUnitsAtStart: units,
-      defenderUnitsAtStart: enemies[0][1],
-      submittedPlayerIds: [],
-      phase: 'SELECT_CARDS'
-    };
-    log(state, `${p.name} attacked ${player(state, defenderId).name} in ${to.name}. Both players must secretly choose a battle card.`);
+    startBattle(state, pid, to, from.id, units, enemies[0]);
     return;
   }
 
   log(state, `${p.name} moved ${units} unit${units === 1 ? '' : 's'} from ${from.name} to ${to.name}.`);
   updateCityOwnership(state);
+}
+
+function startBattle(state: GameState, attackerId: string, battlefield: Territory, originTerritoryId: string, units: number, [defenderId, defenderUnits]: [string, number]) {
+  state.battle = {
+    id: crypto.randomUUID(),
+    territoryId: battlefield.id,
+    originTerritoryId,
+    attackerId,
+    defenderId,
+    attackerUnitsAtStart: units,
+    defenderUnitsAtStart: defenderUnits,
+    submittedPlayerIds: [],
+    phase: 'SELECT_CARDS'
+  };
+  log(state, `${player(state, attackerId).name} attacked ${player(state, defenderId).name} in ${battlefield.name}. Both players must secretly choose a battle card.`);
 }
 
 export function selectBattleCard(state: GameState, pid: string, cardId: string, selections: BattleSelections) {

@@ -16,13 +16,23 @@ describe('rules', () => {
     expect(s.territories.find(t => t.id === 'red-city')!.armies.a).toBe(7);
   });
 
-  it('blocks recruiting in your city while an enemy army occupies it', () => {
+  it('starts a battle when recruiting in your city while an enemy holds it', () => {
     const s = startedGame();
     const city = s.territories.find(t => t.id === 'red-city')!;
     delete city.armies.a;
     city.armies.b = 3;
-    expect(() => recruit(s, 'a', 'red-city', 1)).toThrow(/occupied/);
-    expect(city.armies.a).toBeUndefined();
+    updateCityOwnership(s);
+    expect(city.ownerId).toBe('b');
+    recruit(s, 'a', 'red-city', 4);
+    expect(s.players[0].prayer).toBe(3);
+    expect(city.armies.a).toBe(4);
+    expect(s.battle).toMatchObject({ attackerId: 'a', defenderId: 'b', territoryId: 'red-city', attackerUnitsAtStart: 4, defenderUnitsAtStart: 3 });
+    const selections: BattleSelections = new Map();
+    selectBattleCard(s, 'a', 'maneuver', selections);
+    selectBattleCard(s, 'b', 'shield-wall', selections);
+    expect(s.battle?.loserId).toBe('b');
+    retreat(s, 'b');
+    expect(city.ownerId).toBe('a');
   });
 
   it('transfers a captured city while occupied and reverts it once empty', () => {
@@ -37,12 +47,8 @@ describe('rules', () => {
     move(s, 'b', 'west-desert', 'red-city', 3);
     expect(city.ownerId).toBe('b');
     expect(city.homeOwnerId).toBe('a');
-    s.activePlayerId = 'a';
-    expect(() => recruit(s, 'a', 'red-city', 1)).toThrow(/own city/);
-    s.activePlayerId = 'b';
-    recruit(s, 'b', 'red-city', 1);
-    expect(city.armies.b).toBe(4);
-    move(s, 'b', 'red-city', 'west-desert', 4);
+    expect(() => recruit(s, 'b', 'red-city', 1)).toThrow(/own city/);
+    move(s, 'b', 'red-city', 'west-desert', 3);
     expect(city.ownerId).toBe('a');
   });
 
