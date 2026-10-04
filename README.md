@@ -20,6 +20,8 @@ The host opens `http://localhost:5173`. Other players on the same network open t
 - The losing surviving army retreats to a legal adjacent empty/friendly territory or is recalled to supply.
 - Played cards are discarded. When a player has used every battle card, the full set refreshes.
 - Other actions and ending the turn are blocked until the battle is resolved.
+- A city belongs to whichever player has units in it, and reverts to its original owner as soon as it is empty. Holding a captured city does not let you recruit there.
+- Players always recruit in their own starting city. Recruiting there while an enemy holds it immediately starts a battle, with the recruited units attacking.
 
 The v0.2 cards are an original simplified prototype set for testing the software architecture. They are not a transcription of the physical game's copyrighted cards.
 

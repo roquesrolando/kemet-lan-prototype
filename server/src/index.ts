@@ -17,6 +17,7 @@ import {
   retreat,
   selectBattleCard,
   startGame,
+  updateCityOwnership,
   type BattleSelections,
 } from './game.js';
 
@@ -230,6 +231,7 @@ io.on('connection', (socket) => {
             }
 
             battleSelections.clear();
+            updateCityOwnership(state);
 
             if (
               state.battle?.phase === 'SELECT_CARDS'

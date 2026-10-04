@@ -46,6 +46,7 @@ export function startGame(state: GameState, caller: string) {
   state.players.forEach(p => {
     const t = state.territories.find(t => t.id === `${p.color}-city`)!;
     t.ownerId = p.id;
+    t.homeOwnerId = p.id;
     t.armies[p.id] = 5;
   });
   log(state, `${state.players[0].name} started the game.`);
@@ -56,13 +57,15 @@ export function recruit(state: GameState, pid: string, territoryId: string, unit
   if (!Number.isInteger(units) || units < 1) throw new Error('Units must be a positive whole number.');
   const p = player(state, pid);
   const t = territory(state, territoryId);
-  if (t.kind !== 'city' || t.ownerId !== pid) throw new Error('Recruit only in your own city.');
-  if (Object.entries(t.armies).some(([id, n]) => id !== pid && n > 0)) throw new Error('Cannot recruit in a city occupied by an enemy army.');
+  // Recruiting stays tied to the starting city, even while an enemy holds it.
+  if (t.kind !== 'city' || t.homeOwnerId !== pid) throw new Error('Recruit only in your own city.');
   if (p.prayer < units) throw new Error('Not enough prayer points.');
   if ((t.armies[pid] || 0) + units > 10) throw new Error('Army limit is 10 in this prototype.');
+  const enemies = Object.entries(t.armies).filter(([id, n]) => id !== pid && n > 0);
   p.prayer -= units;
   t.armies[pid] = (t.armies[pid] || 0) + units;
   log(state, `${p.name} recruited ${units} unit${units === 1 ? '' : 's'} in ${t.name}.`);
+  if (enemies.length === 1) startBattle(state, pid, t, t.id, units, enemies[0]);
 }
 
 export function move(state: GameState, pid: string, fromId: string, toId: string, units: number) {
@@ -82,23 +85,27 @@ export function move(state: GameState, pid: string, fromId: string, toId: string
   to.armies[pid] = (to.armies[pid] || 0) + units;
 
   if (enemies.length === 1) {
-    const defenderId = enemies[0][0];
-    state.battle = {
-      id: crypto.randomUUID(),
-      territoryId: to.id,
-      originTerritoryId: from.id,
-      attackerId: pid,
-      defenderId,
-      attackerUnitsAtStart: units,
-      defenderUnitsAtStart: enemies[0][1],
-      submittedPlayerIds: [],
-      phase: 'SELECT_CARDS'
-    };
-    log(state, `${p.name} attacked ${player(state, defenderId).name} in ${to.name}. Both players must secretly choose a battle card.`);
+    startBattle(state, pid, to, from.id, units, enemies[0]);
     return;
   }
 
   log(state, `${p.name} moved ${units} unit${units === 1 ? '' : 's'} from ${from.name} to ${to.name}.`);
+  updateCityOwnership(state);
+}
+
+function startBattle(state: GameState, attackerId: string, battlefield: Territory, originTerritoryId: string, units: number, [defenderId, defenderUnits]: [string, number]) {
+  state.battle = {
+    id: crypto.randomUUID(),
+    territoryId: battlefield.id,
+    originTerritoryId,
+    attackerId,
+    defenderId,
+    attackerUnitsAtStart: units,
+    defenderUnitsAtStart: defenderUnits,
+    submittedPlayerIds: [],
+    phase: 'SELECT_CARDS'
+  };
+  log(state, `${player(state, attackerId).name} attacked ${player(state, defenderId).name} in ${battlefield.name}. Both players must secretly choose a battle card.`);
 }
 
 export function selectBattleCard(state: GameState, pid: string, cardId: string, selections: BattleSelections) {
@@ -111,7 +118,10 @@ export function selectBattleCard(state: GameState, pid: string, cardId: string, 
   selections.set(pid, cardId);
   if (!battle.submittedPlayerIds.includes(pid)) battle.submittedPlayerIds.push(pid);
   log(state, `${p.name} locked in a battle card.`);
-  if (selections.has(battle.attackerId) && selections.has(battle.defenderId)) resolveBattle(state, selections);
+  if (selections.has(battle.attackerId) && selections.has(battle.defenderId)) {
+    resolveBattle(state, selections);
+    updateCityOwnership(state);
+  }
 }
 
 function resolveBattle(state: GameState, selections: BattleSelections) {
@@ -203,6 +213,7 @@ export function retreat(state: GameState, pid: string, territoryId?: string) {
   if (!territoryId) {
     log(state, `${player(state, pid).name} recalled ${units} surviving unit${units === 1 ? '' : 's'} to supply.`);
     state.battle = undefined;
+    updateCityOwnership(state);
     return;
   }
   if (!battle.legalRetreatTerritoryIds?.includes(territoryId)) throw new Error('That territory is not a legal retreat destination.');
@@ -210,6 +221,29 @@ export function retreat(state: GameState, pid: string, territoryId?: string) {
   destination.armies[pid] = (destination.armies[pid] || 0) + units;
   log(state, `${player(state, pid).name} retreated ${units} unit${units === 1 ? '' : 's'} to ${destination.name}.`);
   state.battle = undefined;
+  updateCityOwnership(state);
+}
+
+/**
+ * A city belongs to whichever single player has units in it, and reverts
+ * to its home owner once it is empty. Contested cities keep their owner
+ * until the battle there is resolved.
+ */
+export function updateCityOwnership(state: GameState) {
+  for (const t of state.territories) {
+    if (t.kind !== 'city') continue;
+    // Saves from before captures existed only stored the starting owner.
+    if (!t.homeOwnerId) t.homeOwnerId = t.ownerId;
+    const occupants = Object.entries(t.armies).filter(([, n]) => n > 0).map(([id]) => id);
+    if (occupants.length > 1) continue;
+    const owner = occupants[0] ?? t.homeOwnerId;
+    if (owner === t.ownerId) continue;
+    t.ownerId = owner;
+    if (!owner) continue;
+    log(state, owner === t.homeOwnerId
+      ? `${t.name} reverted to ${player(state, owner).name}.`
+      : `${player(state, owner).name} captured ${t.name}.`);
+  }
 }
 
 export function endTurn(state: GameState, pid: string) {
