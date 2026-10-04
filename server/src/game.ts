@@ -57,6 +57,7 @@ export function recruit(state: GameState, pid: string, territoryId: string, unit
   const p = player(state, pid);
   const t = territory(state, territoryId);
   if (t.kind !== 'city' || t.ownerId !== pid) throw new Error('Recruit only in your own city.');
+  if (Object.entries(t.armies).some(([id, n]) => id !== pid && n > 0)) throw new Error('Cannot recruit in a city occupied by an enemy army.');
   if (p.prayer < units) throw new Error('Not enough prayer points.');
   if ((t.armies[pid] || 0) + units > 10) throw new Error('Army limit is 10 in this prototype.');
   p.prayer -= units;

@@ -5,6 +5,7 @@ import {
   BATTLE_CARDS,
   type ClientCommand,
   type GameState,
+  type ServerMessage,
 } from '@kemet/shared';
 import './styles.css';
 
@@ -12,9 +13,7 @@ const socket = io(`http://${window.location.hostname}:3001`);
 
 function App() {
   const [state, setState] = useState<GameState>();
-  const [playerId, setPlayerId] = useState(
-    localStorage.getItem('kemet-player') || '',
-  );
+  const [playerId, setPlayerId] = useState('');
   const [name, setName] = useState('');
   const [msg, setMsg] = useState('');
   const [selected, setSelected] = useState<string>();
@@ -34,9 +33,9 @@ function App() {
 
   useEffect(() => {
     function reconnectPlayer() {
-      const savedPlayerId = localStorage.getItem('kemet-player');
+      const savedPlayerToken = localStorage.getItem('kemet-token');
 
-      if (!savedPlayerId) {
+      if (!savedPlayerToken) {
         return;
       }
 
@@ -45,17 +44,17 @@ function App() {
         {
           type: 'JOIN',
           name: '',
-          playerToken: savedPlayerId,
+          playerToken: savedPlayerToken,
         },
-        (response: any) => {
+        (response: ServerMessage) => {
           if (response.ok) {
-            setPlayerId(response.playerId);
+            setPlayerId(response.playerId || '');
 
             if (response.state) {
               setState(response.state);
             }
           } else {
-            localStorage.removeItem('kemet-player');
+            localStorage.removeItem('kemet-token');
             setPlayerId('');
           }
         },
@@ -79,12 +78,15 @@ function App() {
   );
 
   function send(cmd: ClientCommand) {
-    socket.emit('command', cmd, (response: any) => {
+    socket.emit('command', cmd, (response: ServerMessage) => {
       setMsg(response.ok ? '' : response.message || 'Error');
 
       if (response.playerId) {
         setPlayerId(response.playerId);
-        localStorage.setItem('kemet-player', response.playerId);
+      }
+
+      if (response.playerToken) {
+        localStorage.setItem('kemet-token', response.playerToken);
       }
 
       if (response.state) {
@@ -119,7 +121,7 @@ function App() {
               type: 'JOIN',
               name: name.trim(),
               playerToken:
-                localStorage.getItem('kemet-player') || undefined,
+                localStorage.getItem('kemet-token') || undefined,
             })
           }
         >

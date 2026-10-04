@@ -7,7 +7,7 @@
     "dev": "pnpm --filter @kemet/shared build && concurrently -n server,client -c auto \"pnpm --filter @kemet/server dev\" \"pnpm --filter @kemet/client dev\"",
     "build": "pnpm --filter @kemet/shared build && pnpm --filter @kemet/server build && pnpm --filter @kemet/client build",
     "start": "pnpm --filter @kemet/server start",
-    "test": "pnpm --filter @kemet/server test"
+    "test": "pnpm --filter @kemet/shared build && pnpm --filter @kemet/server test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

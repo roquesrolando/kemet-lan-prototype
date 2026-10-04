@@ -29,7 +29,10 @@ The v0.2 cards are an original simplified prototype set for testing the software
 pnpm dev
 pnpm test
 pnpm build
+pnpm start   # serves the built server from server/dist
 ```
+
+Each browser keeps a secret seat token in `localStorage` to reclaim its seat after a reconnect. Saves in `saves/latest.json` include these tokens, so treat that file as private to the host.
 
 ## Not included yet
 

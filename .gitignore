@@ -23,3 +23,8 @@ coverage/
 
 # Logs
 *.log
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Host save files
+saves/
