@@ -16,6 +16,15 @@ describe('rules', () => {
     expect(s.territories.find(t => t.id === 'red-city')!.armies.a).toBe(7);
   });
 
+  it('blocks recruiting in your city while an enemy army occupies it', () => {
+    const s = startedGame();
+    const city = s.territories.find(t => t.id === 'red-city')!;
+    delete city.armies.a;
+    city.armies.b = 3;
+    expect(() => recruit(s, 'a', 'red-city', 1)).toThrow(/occupied/);
+    expect(city.armies.a).toBeUndefined();
+  });
+
   it('blocks non-adjacent moves', () => {
     const s = startedGame();
     expect(() => move(s, 'a', 'red-city', 'center', 1)).toThrow(/adjacent/);

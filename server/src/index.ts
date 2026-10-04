@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Server } from 'socket.io';
-import type { ClientCommand } from '@kemet/shared';
+import type { ClientCommand, GameState, ServerMessage } from '@kemet/shared';
 import {
   addPlayer,
   endTurn,
@@ -36,6 +36,13 @@ let state = newGame();
 
 const battleSelections: BattleSelections = new Map();
 
+/*
+ * Maps each browser's secret seat token to its public player ID.
+ * Player IDs are broadcast to everyone in the game state, so they
+ * cannot double as proof of identity when reconnecting.
+ */
+let playerTokens = new Map<string, string>();
+
 const savePath = path.resolve(
   process.cwd(),
   '../saves/latest.json',
@@ -52,12 +59,7 @@ io.on('connection', (socket) => {
     'command',
     (
       cmd: ClientCommand,
-      reply: (response: {
-        ok: boolean;
-        message?: string;
-        playerId?: string;
-        state?: typeof state;
-      }) => void,
+      reply: (response: ServerMessage) => void,
     ) => {
       try {
         let playerId = socket.data.playerId as
@@ -65,9 +67,13 @@ io.on('connection', (socket) => {
           | undefined;
 
         if (cmd.type === 'JOIN') {
-          const existingPlayer = cmd.playerToken
+          const existingPlayerId = cmd.playerToken
+            ? playerTokens.get(cmd.playerToken)
+            : undefined;
+
+          const existingPlayer = existingPlayerId
             ? state.players.find(
-                (player) => player.id === cmd.playerToken,
+                (player) => player.id === existingPlayerId,
               )
             : undefined;
 
@@ -84,6 +90,7 @@ io.on('connection', (socket) => {
             reply({
               ok: true,
               playerId: existingPlayer.id,
+              playerToken: cmd.playerToken,
               state,
             });
 
@@ -98,8 +105,9 @@ io.on('connection', (socket) => {
           }
 
           /*
-           * Create a permanent player ID. This ID remains stored
-           * in the browser and survives Socket.IO reconnections.
+           * Create a permanent public player ID plus a secret token.
+           * The token remains stored in the browser and survives
+           * Socket.IO reconnections.
            */
           const permanentPlayerId = randomUUID();
 
@@ -109,6 +117,9 @@ io.on('connection', (socket) => {
             permanentPlayerId,
           );
 
+          const newPlayerToken = randomUUID();
+          playerTokens.set(newPlayerToken, newPlayer.id);
+
           newPlayer.connected = true;
           socket.data.playerId = newPlayer.id;
           playerId = newPlayer.id;
@@ -116,6 +127,7 @@ io.on('connection', (socket) => {
           reply({
             ok: true,
             playerId: newPlayer.id,
+            playerToken: newPlayerToken,
             state,
           });
 
@@ -179,7 +191,14 @@ io.on('connection', (socket) => {
 
             fs.writeFileSync(
               savePath,
-              JSON.stringify(state, null, 2),
+              JSON.stringify(
+                {
+                  state,
+                  playerTokens: Object.fromEntries(playerTokens),
+                },
+                null,
+                2,
+              ),
             );
 
             log(state, 'Game saved on the host.');
@@ -190,9 +209,25 @@ io.on('connection', (socket) => {
               throw new Error('No saved game was found.');
             }
 
-            state = JSON.parse(
+            const saved = JSON.parse(
               fs.readFileSync(savePath, 'utf8'),
             );
+
+            if (saved.playerTokens) {
+              state = saved.state as GameState;
+              playerTokens = new Map(
+                Object.entries(saved.playerTokens as Record<string, string>),
+              );
+            } else {
+              /*
+               * Saves from before secret tokens stored the bare state,
+               * and browsers reconnected with their player ID.
+               */
+              state = saved as GameState;
+              playerTokens = new Map(
+                state.players.map((player) => [player.id, player.id]),
+              );
+            }
 
             battleSelections.clear();
 

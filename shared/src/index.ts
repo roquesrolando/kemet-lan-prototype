@@ -157,4 +157,5 @@ export interface ServerMessage {
   message?: string;
   state?: GameState;
   playerId?: string;
+  playerToken?: string;
 }
