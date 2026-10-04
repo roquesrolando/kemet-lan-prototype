@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, move, newGame, recruit, retreat, selectBattleCard, startGame, type BattleSelections } from './game.js';
+import { addPlayer, move, newGame, recruit, retreat, selectBattleCard, startGame, updateCityOwnership, type BattleSelections } from './game.js';
 
 function startedGame() {
   const s = newGame();
@@ -23,6 +23,51 @@ describe('rules', () => {
     city.armies.b = 3;
     expect(() => recruit(s, 'a', 'red-city', 1)).toThrow(/occupied/);
     expect(city.armies.a).toBeUndefined();
+  });
+
+  it('transfers a captured city while occupied and reverts it once empty', () => {
+    const s = startedGame();
+    const city = s.territories.find(t => t.id === 'red-city')!;
+    const desert = s.territories.find(t => t.id === 'west-desert')!;
+    // Red has left the city; Blue walks in from the adjacent desert.
+    move(s, 'a', 'red-city', 'west-desert', 5);
+    s.activePlayerId = 'b';
+    delete desert.armies.a;
+    desert.armies.b = 4;
+    move(s, 'b', 'west-desert', 'red-city', 3);
+    expect(city.ownerId).toBe('b');
+    expect(city.homeOwnerId).toBe('a');
+    s.activePlayerId = 'a';
+    expect(() => recruit(s, 'a', 'red-city', 1)).toThrow(/own city/);
+    s.activePlayerId = 'b';
+    recruit(s, 'b', 'red-city', 1);
+    expect(city.armies.b).toBe(4);
+    move(s, 'b', 'red-city', 'west-desert', 4);
+    expect(city.ownerId).toBe('a');
+  });
+
+  it('transfers a city when its defenders are destroyed in battle', () => {
+    const s = startedGame();
+    const city = s.territories.find(t => t.id === 'red-city')!;
+    city.armies.a = 1;
+    s.territories.find(t => t.id === 'west-desert')!.armies.b = 6;
+    s.activePlayerId = 'b';
+    move(s, 'b', 'west-desert', 'red-city', 6);
+    expect(city.ownerId).toBe('a');
+    const selections: BattleSelections = new Map();
+    selectBattleCard(s, 'b', 'bloodbath', selections);
+    selectBattleCard(s, 'a', 'charge', selections);
+    expect(s.battle).toBeUndefined();
+    expect(city.armies.a).toBeUndefined();
+    expect(city.ownerId).toBe('b');
+  });
+
+  it('backfills the home owner for saves made before captures', () => {
+    const s = startedGame();
+    const city = s.territories.find(t => t.id === 'red-city')!;
+    delete city.homeOwnerId;
+    updateCityOwnership(s);
+    expect(city.homeOwnerId).toBe('a');
   });
 
   it('blocks non-adjacent moves', () => {

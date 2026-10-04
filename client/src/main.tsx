@@ -282,6 +282,14 @@ function App() {
                 })
                 .join(' · ') || 'Empty';
 
+            const capturedBy =
+              territory.kind === 'city' &&
+              territory.ownerId !== territory.homeOwnerId
+                ? state.players.find(
+                    (player) => player.id === territory.ownerId,
+                  )?.name
+                : undefined;
+
             return (
               <button
                 key={territory.id}
@@ -300,6 +308,11 @@ function App() {
                 }}
               >
                 <b>{territory.name}</b>
+                {capturedBy && (
+                  <small className="captured">
+                    Held by {capturedBy}
+                  </small>
+                )}
                 <small>{armyText}</small>
               </button>
             );

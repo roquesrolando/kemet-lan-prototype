@@ -46,6 +46,7 @@ export function startGame(state: GameState, caller: string) {
   state.players.forEach(p => {
     const t = state.territories.find(t => t.id === `${p.color}-city`)!;
     t.ownerId = p.id;
+    t.homeOwnerId = p.id;
     t.armies[p.id] = 5;
   });
   log(state, `${state.players[0].name} started the game.`);
@@ -99,6 +100,7 @@ export function move(state: GameState, pid: string, fromId: string, toId: string
   }
 
   log(state, `${p.name} moved ${units} unit${units === 1 ? '' : 's'} from ${from.name} to ${to.name}.`);
+  updateCityOwnership(state);
 }
 
 export function selectBattleCard(state: GameState, pid: string, cardId: string, selections: BattleSelections) {
@@ -111,7 +113,10 @@ export function selectBattleCard(state: GameState, pid: string, cardId: string, 
   selections.set(pid, cardId);
   if (!battle.submittedPlayerIds.includes(pid)) battle.submittedPlayerIds.push(pid);
   log(state, `${p.name} locked in a battle card.`);
-  if (selections.has(battle.attackerId) && selections.has(battle.defenderId)) resolveBattle(state, selections);
+  if (selections.has(battle.attackerId) && selections.has(battle.defenderId)) {
+    resolveBattle(state, selections);
+    updateCityOwnership(state);
+  }
 }
 
 function resolveBattle(state: GameState, selections: BattleSelections) {
@@ -203,6 +208,7 @@ export function retreat(state: GameState, pid: string, territoryId?: string) {
   if (!territoryId) {
     log(state, `${player(state, pid).name} recalled ${units} surviving unit${units === 1 ? '' : 's'} to supply.`);
     state.battle = undefined;
+    updateCityOwnership(state);
     return;
   }
   if (!battle.legalRetreatTerritoryIds?.includes(territoryId)) throw new Error('That territory is not a legal retreat destination.');
@@ -210,6 +216,29 @@ export function retreat(state: GameState, pid: string, territoryId?: string) {
   destination.armies[pid] = (destination.armies[pid] || 0) + units;
   log(state, `${player(state, pid).name} retreated ${units} unit${units === 1 ? '' : 's'} to ${destination.name}.`);
   state.battle = undefined;
+  updateCityOwnership(state);
+}
+
+/**
+ * A city belongs to whichever single player has units in it, and reverts
+ * to its home owner once it is empty. Contested cities keep their owner
+ * until the battle there is resolved.
+ */
+export function updateCityOwnership(state: GameState) {
+  for (const t of state.territories) {
+    if (t.kind !== 'city') continue;
+    // Saves from before captures existed only stored the starting owner.
+    if (!t.homeOwnerId) t.homeOwnerId = t.ownerId;
+    const occupants = Object.entries(t.armies).filter(([, n]) => n > 0).map(([id]) => id);
+    if (occupants.length > 1) continue;
+    const owner = occupants[0] ?? t.homeOwnerId;
+    if (owner === t.ownerId) continue;
+    t.ownerId = owner;
+    if (!owner) continue;
+    log(state, owner === t.homeOwnerId
+      ? `${t.name} reverted to ${player(state, owner).name}.`
+      : `${player(state, owner).name} captured ${t.name}.`);
+  }
 }
 
 export function endTurn(state: GameState, pid: string) {

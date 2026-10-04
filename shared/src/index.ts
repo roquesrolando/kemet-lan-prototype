@@ -70,6 +70,8 @@ export interface Territory {
   name: string;
   kind: 'city' | 'desert' | 'temple';
   ownerId?: string;
+  /** The player whose starting city this is; ownership reverts here when the city is empty. */
+  homeOwnerId?: string;
   armies: Record<string, number>;
   neighbors: string[];
   x: number;
